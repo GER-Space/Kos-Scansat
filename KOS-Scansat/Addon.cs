@@ -227,13 +227,13 @@ namespace kOS.AddOns.kOSSCANsat
             double dEW = ((z[0] + z[3] + z[6]) - (z[2] + z[5] + z[8])) / (8*offsetm);
             double dNS = ((z[6] + z[7] + z[8]) - (z[0] + z[1] + z[2])) / (8*offsetm);
 
-            slope = Math.Abs(Math.Atan(Math.Sqrt(Math.Pow(dEW,2) + Math.Pow(dNS,2))));
+            slope = 100* Math.Abs(Math.Sqrt(Math.Pow(dEW,2) + Math.Pow(dNS,2)));
 
             if (SCANUtil.isCovered(coordinate.Longitude, coordinate.Latitude, body.Body, SCANUtil.GetSCANtype("AltimetryLoRes")))
             {
 
             }
-            return slope;
+            return Math.Round(slope,2);
         }
         
 
