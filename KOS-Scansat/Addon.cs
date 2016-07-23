@@ -27,13 +27,17 @@ namespace kOS.AddOns.kOSSCANsat
         }
         private void InitializeSuffixes()
         {
-            AddSuffix("CURRENTBIOME", new kOS.Safe.Encapsulation.Suffixes.NoArgsSuffix<StringValue>(GetCurrentBiome, "Get Name of current Biome"));
-            AddSuffix("BIOMEAT", new kOS.Safe.Encapsulation.Suffixes.TwoArgsSuffix<StringValue, BodyTarget, GeoCoordinates>(GetBiomeAt, "Get Name of Biome of Body,GeoCoordinates"));
-            AddSuffix("ELEVATION", new kOS.Safe.Encapsulation.Suffixes.TwoArgsSuffix<ScalarDoubleValue, BodyTarget, GeoCoordinates>(GetAltAt, "Get scanned altitude of Body,GeoCoordinates"));
-            AddSuffix("COMPLETEDSCANS", new kOS.Safe.Encapsulation.Suffixes.TwoArgsSuffix<ListValue, BodyTarget, GeoCoordinates>(GetScans, "Returns the list of the completed scans of Body,GeoCoordinates"));
-            AddSuffix("ALLSCANTYPES", new kOS.Safe.Encapsulation.Suffixes.NoArgsSuffix<StringValue>(GetScanNames, "Names of all scan types"));
+   
 
-            AddSuffix("RESOURCEAT", new kOS.Safe.Encapsulation.Suffixes.VarArgsSuffix<ScalarDoubleValue, Structure>(GetResourceByName, "Returns the amount of a resource by its scan type: Body,GeoCoordinates,scantype"));
+                AddSuffix("CURRENTBIOME", new kOS.Safe.Encapsulation.Suffixes.NoArgsSuffix<StringValue>(GetCurrentBiome, "Get Name of current Biome"));
+                AddSuffix(new[] { "GETBIOME", "BIOMEAT" }, new kOS.Safe.Encapsulation.Suffixes.TwoArgsSuffix<StringValue, BodyTarget, GeoCoordinates>(GetBiomeAt, "Get Name of Biome of Body,GeoCoordinates"));
+                AddSuffix("ELEVATION", new kOS.Safe.Encapsulation.Suffixes.TwoArgsSuffix<ScalarDoubleValue, BodyTarget, GeoCoordinates>(GetAltAt, "Get scanned altitude of Body,GeoCoordinates"));
+                AddSuffix("COMPLETEDSCANS", new kOS.Safe.Encapsulation.Suffixes.TwoArgsSuffix<ListValue, BodyTarget, GeoCoordinates>(GetScans, "Returns the list of the completed scans of Body,GeoCoordinates"));
+                AddSuffix("ALLSCANTYPES", new kOS.Safe.Encapsulation.Suffixes.NoArgsSuffix<StringValue>(GetScanNames, "Names of all scan types"));
+                AddSuffix("ALLRESOURCES", new kOS.Safe.Encapsulation.Suffixes.NoArgsSuffix<ListValue>(GetResourceNames, "List of all activated resource in the current game"));
+                AddSuffix("RESOURCEAT", new kOS.Safe.Encapsulation.Suffixes.VarArgsSuffix<ScalarDoubleValue, Structure>(GetResourceByName, "Returns the amount of a resource by its scan type: Body,GeoCoordinates,scantype"));
+                AddSuffix("SLOPE", new kOS.Safe.Encapsulation.Suffixes.TwoArgsSuffix<ScalarDoubleValue, BodyTarget, GeoCoordinates>(GetSlope, "Returns the most accurate slope of the location"));
+                AddSuffix("GETCOVERAGE", new kOS.Safe.Encapsulation.Suffixes.TwoArgsSuffix<ScalarDoubleValue, BodyTarget, StringValue>(GetCoverage, "Returns completen percatage of a body,scantype"));
 
         }
 
@@ -41,6 +45,7 @@ namespace kOS.AddOns.kOSSCANsat
         {
             if (args.Length != 3 ) { return null; }
             BodyTarget body = args.Where(s => s.GetType() == typeof(BodyTarget)).Cast<BodyTarget>().First();
+//            BodyTarget body = args[0] as BodyTarget;
             GeoCoordinates coordinate = args.Where(s => s.GetType() == typeof(GeoCoordinates)).Cast<GeoCoordinates>().First();
             StringValue s_type = args.Where(s => s.GetType() == typeof(StringValue)).Cast<StringValue>().First();
 
@@ -55,7 +60,7 @@ namespace kOS.AddOns.kOSSCANsat
                     ResourceName = s_type,
                     ResourceType = HarvestTypes.Planetary,
                     Altitude = 0,
-                    CheckForLock = false,
+                    CheckForLock = SCANcontroller.controller.resourceBiomeLock,
                     BiomeName = ScienceUtil.GetExperimentBiome(body.Body, coordinate.Latitude, coordinate.Longitude),
                     ExcludeVariance = false,
                 };
@@ -123,6 +128,114 @@ namespace kOS.AddOns.kOSSCANsat
                 return altitude;
         }
 
+        private ScalarDoubleValue GetCoverage(BodyTarget body, StringValue scantype)
+        {
+            return SCANUtil.GetCoverage(SCANUtil.GetSCANtype(scantype),body.Body);
+        }
+
+        private ScalarDoubleValue GetAltAt(BodyTarget body, double lon, double lat)
+        {
+            GeoCoordinates coordinates = new GeoCoordinates(shared, lat, lon);
+             return GetAltAt(body,coordinates);
+        }
+
+
+        private ScalarDoubleValue GetSlope(BodyTarget body, GeoCoordinates coordinate)
+        {
+            double slope = -1;
+            double offsetm = 5;
+
+            if (SCANUtil.isCovered(coordinate.Longitude, coordinate.Latitude, body.Body, SCANUtil.GetSCANtype("AltimetryHiRes")))
+            {
+                offsetm = 5;
+            }
+            if (SCANUtil.isCovered(coordinate.Longitude, coordinate.Latitude, body.Body, SCANUtil.GetSCANtype("AltimetryLoRes")))
+            {
+                offsetm = 500;
+            }
+
+            /*
+            double circum = body.Body.Radius * 2 * Math.PI;
+            double eqDistancePerDegree = circum / 360;
+            degreeOffset = 5 / eqDistancePerDegree;
+            */
+            double offset = offsetm/(body.Body.Radius * 2 * Math.PI/360);
+
+            double latOffset = 0;
+            // matrix for z-values
+            double[] z = new double[9];
+
+            int i = 0;
+            double lat = coordinate.Latitude;
+            double lon = coordinate.Longitude;
+            double altcenter = GetAltAt(body, lon, lat);
+
+            // setup the matrix with eqidistant messurement. 
+            // We have now the form from:
+            // http://www.caee.utexas.edu/prof/maidment/giswr2011/docs/Slope.pdf 
+            //
+            for (int lac = 1; lac > -2; lac-- )
+            {
+                latOffset = offset * Math.Cos(Mathf.Deg2Rad * lat);
+
+                for (int lnc = -1; lnc < 2; lnc++)
+                {
+                    z[i] = GetAltAt(body,lon+(lnc*latOffset),lat+(lac*offset));
+                    if (z[i] == -1)
+                    {
+                        z[i] = altcenter;
+                    }
+                    i =+ 1;
+                }
+            }
+
+            /*
+             * 0= i-1,j+1
+             * 1= i,j+1
+             * 2 = i+1,j+1
+             * 3= i-1,j
+             * 4 = i,j
+             * 5 = i+1,j
+             * 6 = i-1,j-1
+             * 7 = i, j-1
+             * 8 i+1, j-1
+             * 
+             * */
+            /*
+             * 
+             * west gradient
+             * dEW= [(Zi+1,j+1 + 2Zi+1,j + Zi+1,j-1) - (Zi-1,j+1 + 2Zi-1,j + Zi-1,j-1)]/8dX 
+
+            The north-south gradient is calculated by 
+
+            dNS = [(Zi+1,j+1 + 2Zi,j+1 + Zi-1,j+1) - (Zi+1,j-1 + 2Zi,j-1 + Zi-1,j-1)]/8dy 
+
+            Where 
+            dx = the east-west distance across the cell (cell width)
+            dy = the north-south distance across the cell (cell height) 
+
+
+            Percent slope is calculated by: 
+
+            Slope% = 100 * [(dEW)^2*(dNS)^2]^1/2 
+
+            Degrees slope is calculated by: 
+
+            SlopeDegrees = ArcTangent[(dEW)^2 +(dNS)^2]^1/2 
+
+*/
+            double dEW = ((z[0] + z[3] + z[6]) - (z[2] + z[5] + z[8])) / (8*offsetm);
+            double dNS = ((z[6] + z[7] + z[8]) - (z[0] + z[1] + z[2])) / (8*offsetm);
+
+            slope = Math.Abs(Math.Atan(Math.Sqrt(Math.Pow(dEW,2) + Math.Pow(dNS,2))));
+
+            if (SCANUtil.isCovered(coordinate.Longitude, coordinate.Latitude, body.Body, SCANUtil.GetSCANtype("AltimetryLoRes")))
+            {
+
+            }
+            return slope;
+        }
+        
 
         // this function is copied from SCANsat. https://github.com/S-C-A-N/SCANsat
         internal static double GetElevation(CelestialBody body, double lon, double lat)
@@ -148,6 +261,15 @@ namespace kOS.AddOns.kOSSCANsat
                 return scans;
         }
 
+        private ListValue GetResourceNames()
+        {
+            ListValue resources = new ListValue();
+            foreach (SCANresourceGlobal res in SCANcontroller.setLoadedResourceList() )  {
+                resources.Add(new StringValue(res.Name));
+            }
+            return resources;
+        }
+
         private StringValue GetScanNames()
         {
             var allscans = "";
@@ -162,7 +284,7 @@ namespace kOS.AddOns.kOSSCANsat
 
         private bool CheckScanBlacklisted (string scanname)
         {
-            string[] blacklist = { "Nothing", "Altimetry", "Everything_SCAN", "Science", "Everything", "AllResources", "MKSResources", "KSPIResourece", "DefinedResources" , "SCANsat_1" };
+            string[] blacklist = { "Nothing", "Altimetry", "Everything_SCAN", "Science", "Everything", "MKSResources", "KSPIResourece", "DefinedResources" , "SCANsat_1" };
             if (blacklist.Contains(scanname))
             {
                 return true;
