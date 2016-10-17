@@ -15,8 +15,9 @@ Unpack the .zip file in the GameData folder
 
 ## kOS Addon Functions:
  
-Basepath is **addons:eva**  
+Basepath is **addons:eva** 
 **\<geoposition\>** is the structure returned my latlng or vessel:geoposition
+
 **\<body\>** ist the structure returned my SHIP:BODY or Mun,Duna ect. not a String.
 
 **:CURRENTBIOME**
