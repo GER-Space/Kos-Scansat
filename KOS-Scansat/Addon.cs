@@ -1,9 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using kOS;
-using kOS.Safe;
 using kOS.Suffixed;
 using UnityEngine;
 using SCANsat;
@@ -89,8 +85,25 @@ namespace kOS.AddOns.kOSSCANsat
             var vessel = FlightGlobals.ActiveVessel;
             var body = FlightGlobals.ActiveVessel.mainBody;
             var Biome = "";
-            // check if we have crew onboard, which can look outside of a window, to determinate where we are.
-            if (vessel.GetCrewCount() > 0)
+            bool has_kerbnet = false;
+
+            // implement KerbNet Checking of current biome
+            if (vessel.connection.IsConnectedHome)
+            {
+                var kerbnets = vessel.FindPartModulesImplementing<ModuleKerbNetAccess>();
+                if (kerbnets.Count > 0)
+                {
+                    foreach (var net in kerbnets)
+                    {
+                        if (net.modes.Exists(s => s.Equals("Biome", StringComparison.OrdinalIgnoreCase)))
+                        {
+                            has_kerbnet = true;
+                        }
+                    }
+                }
+            }
+            // check if we have crew onboard, which can look outside of a window, to determinate where we are or have we kerbnet access
+            if (has_kerbnet || (vessel.GetCrewCount() > 0) )
             {
                 Biome = string.IsNullOrEmpty(vessel.landedAt)
                 ? ScienceUtil.GetExperimentBiome(body, vessel.latitude, vessel.longitude)
