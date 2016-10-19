@@ -182,8 +182,6 @@
 		{
 		    double slope = -1;
 		    double offsetm = 500;
-
-			
 		    double lon = coordinate.Longitude;
 		    double lat = coordinate.Latitude;
 		    CelestialBody body = bodytgt.Body;
@@ -192,14 +190,12 @@
 		    {
 			offsetm = 5;
 		    }
-
 		    /*
 		    double circum = body.Body.Radius * 2 * Math.PI;
 		    double eqDistancePerDegree = circum / 360;
 		    degreeOffset = 5 / eqDistancePerDegree;
 		    */
 		    double offset = offsetm/(body.Radius * 2 * Math.PI/360);
-
 		    double latOffset = 0;
 		    // matrix for z-values
 		    double[] z = new double[9];
