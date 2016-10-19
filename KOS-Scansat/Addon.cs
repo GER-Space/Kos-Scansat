@@ -1,4 +1,4 @@
-	using System;
+﻿	using System;
 	using System.Linq;
 	using kOS.Suffixed;
 	using UnityEngine;
@@ -129,7 +129,7 @@
 		///</summary>
 		public StringValue GetCurrentBiome()
 		{
-		    var vessel = Shared.Vessel;
+		    var vessel = shared.Vessel;
 		    var body = vessel.mainBody;
 		    var Biome = "";
 
@@ -186,7 +186,7 @@
 		    double lat = coordinate.Latitude;
 		    CelestialBody body = bodytgt.Body;
 		    
-		    if ( (SCANUtil.isCovered(lon, lat, body, SCANUtil.GetSCANtype("AltimetryHiRes"))) || ( (HasKerbNet("Terrain") && (IsInKerbNetFoV(body,lon,lat)) ) )
+		    if ( (SCANUtil.isCovered(lon, lat, body, SCANUtil.GetSCANtype("AltimetryHiRes"))) || ( (HasKerbNet("Terrain") && (IsInKerbNetFoV(body,lon,lat))) ) )
 		    {
 			offsetm = 5;
 		    }
@@ -252,9 +252,9 @@
 		{
 			bool has_kerbnet = false;
 
-			if (vessel.connection.IsConnectedHome)
+			if (shared.Vessel.connection.IsConnectedHome)
 			{
-				var kerbnets = vessel.FindPartModulesImplementing<ModuleKerbNetAccess>();
+				var kerbnets = shared.Vessel.FindPartModulesImplementing<ModuleKerbNetAccess>();
 				if (kerbnets.Count > 0)
 				{
 					foreach (var net in kerbnets)
@@ -275,30 +275,30 @@
 		internal bool IsInKerbNetFoV(CelestialBody body,double lng, double lat)
 		{
 			bool isinview = false;
-			Vector3d body_vector = (body.position - Shared.Vessel.CoMD);
+			Vector3d body_vector = (body.position - shared.Vessel.CoMD);
 
 			//check if we are orbiting the planet
-			if (Shared.Vessel.mainBody.name == body.name)
+			if (shared.Vessel.mainBody.name == body.name)
 			{
 				double altitude = GetElevation(body, lng, lat);
-				Vector3d latLongCoords = Body.GetWorldSurfacePosition(lat, lng, altitude);
-				Vector3d hereCoords = Shared.Vessel.CoMD;
+				Vector3d latLongCoords = body.GetWorldSurfacePosition(lat, lng, altitude);
+				Vector3d hereCoords = shared.Vessel.CoMD;
 				Vector3d tgt_position = (latLongCoords - hereCoords);
 				// if the vector to the spot from body center is in our direction (opposite of the body direction,
 				// then the spot is on our side of the body. 
-				if (Vector3d.Vdot(tgt_position - body_vector, body_vector) < 0)
+				if (Vector3d.Dot(tgt_position - body_vector, body_vector) < 0)
 				{
 					double MaxFOV = 0.1;
-					var kerbnets = vessel.FindPartModulesImplementing<ModuleKerbNetAccess>();
+					var kerbnets = shared.Vessel.FindPartModulesImplementing<ModuleKerbNetAccess>();
 					if (kerbnets.Count > 0)
 					{
 						foreach (var net in kerbnets)
 						{
-							MaxFOV=Math.Max(MaxFOV,net.MaximumFoV)
+                            MaxFOV = Math.Max(MaxFOV, net.MaximumFoV);
 						}
 					}
-					
-					if (Vector3d.Vang(tgt_position, body_vector) < MaxFOV )
+					// check if we are inside the Field of View. The angle must be halve of the whole view.
+					if (Vector3d.Angle(tgt_position, body_vector) < MaxFOV/2 )
 					{
 						isinview = true;
 					}
@@ -315,7 +315,7 @@
 		///</summary>
 		internal string GetScannedBiomeName(CelestialBody body,double lng, double lat)
 		{
-		    if ( (SCANUtil.isCovered(lng,lat,body, SCANUtil.GetSCANtype("Biome"))) || ( (HasKerbNet("Biome") && (IsInKerbNetFoV(body,lng,lat)) ) )
+		    if ( (SCANUtil.isCovered(lng,lat,body, SCANUtil.GetSCANtype("Biome"))) || ( (HasKerbNet("Biome")) && (IsInKerbNetFoV(body,lng,lat)) ) )
 		    {
 			return ScienceUtil.GetExperimentBiome(body, lat, lng);
 		    } else 	    
@@ -333,7 +333,7 @@
 		{
 			double altitude = -1;
 
-			if ( (SCANUtil.isCovered(lon, lat, body, SCANUtil.GetSCANtype("AltimetryHiRes"))) || ( (HasKerbNet("Terrain") && (IsInKerbNetFoV(body,lon,lat)) ) )
+			if ( (SCANUtil.isCovered(lon, lat, body, SCANUtil.GetSCANtype("AltimetryHiRes"))) || ( (HasKerbNet("Terrain")) && (IsInKerbNetFoV(body,lon,lat)) ) )
 			{
 				altitude = GetElevation(body, lon, lat);
 				return altitude;
