@@ -294,7 +294,7 @@
 					{
 						foreach (var net in kerbnets)
 						{
-                            MaxFOV = Math.Max(MaxFOV, net.MaximumFoV);
+                            MaxFOV = Math.Max(MaxFOV, net.GetKerbNetMaximumFoV());
 						}
 					}
 					// check if we are inside the Field of View. The angle must be halve of the whole view.
