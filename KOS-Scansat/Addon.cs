@@ -1,4 +1,4 @@
-	 using System;
+	using System;
 	using System.Linq;
 	using kOS.Suffixed;
 	using UnityEngine;
@@ -172,7 +172,7 @@
 		///<summary>
 		/// Returns the name of the biome for a goepostion. Used in the calling suffix.
 		/// takes parameter <CelestialBody>, <GeoCoordinates>
-		///</summary
+		///</summary>
 		private StringValue GetBiomeAt(BodyTarget body, GeoCoordinates coordinate)
 		{
 		    return GetScannedBiomeName(body.Body, coordinate.Latitude, coordinate.Longitude);
@@ -193,7 +193,10 @@
 		    }
 		}
 
-
+		///<summary>
+		/// Suffix funtion for returing the altitude for a spot
+		/// takes the kos parameters <BodyTarget>, <GeoCoordinates>
+		///</summary>
 		private ScalarDoubleValue GetAltAt(BodyTarget body, GeoCoordinates coordinate)
 		{
 		    double altitude = -1;
@@ -211,7 +214,11 @@
 		    }
 			return altitude;
 		}
-
+		
+		///<summary>
+		/// Suffix funtion for returing completed percentage of a scantype for a body
+		/// takes the kos parameters <BodyTarget>, <StrinValue> scantype
+		///</summary>
 		private ScalarDoubleValue GetCoverage(BodyTarget body, StringValue scantype)
 		{
 		    return SCANUtil.GetCoverage(SCANUtil.GetSCANtype(scantype),body.Body);
@@ -223,7 +230,10 @@
 		     return GetAltAt(body,coordinates);
 		}
 
-
+		///<summary>
+		/// Suffix funtion for returing the Slope for a spot
+		/// takes the kos parameters <BodyTarget>, <GeoCoordinates>
+		///</summary>
 		private ScalarDoubleValue GetSlope(BodyTarget body, GeoCoordinates coordinate)
 		{
 		    double slope = -1;
@@ -299,6 +309,10 @@
 		    return Math.Round(body.pqsController.GetSurfaceHeight(rad) - body.pqsController.radius, 1);
 		}
 
+		///<summary>
+		/// Suffix funtion for returing the completed scans for a spot
+		/// takes the kos parameters <BodyTarget>, <GeoCoordinates>
+		///</summary>
 		private ListValue GetScans(BodyTarget body, GeoCoordinates coordinate)
 		{
 		    ListValue scans = new ListValue();
@@ -314,6 +328,7 @@
 		}
 
 		///<summary>
+		/// Suffix function
 		/// returns a list with the loaded resources.
 		///</summary>
 		private ListValue GetResourceNames()
