@@ -32,13 +32,13 @@ returns the name of the biome, when a biome scan was performed. with no biome sc
 
 **:ELEVATION (\<body\>,\<geoposition\>)**
 
-Returns the scanned altitude of the coordinates. -1 when It's not scanned. 
+Returns the scanned altitude of the coordinates. 
 Rounded to 500m steps, when only the low-resolution scan was perfomred.
+-1 when It's not scanned. And no KerbNet access is possible, or the KerbNet of the current Vessel is out of the scanning FOV. 
 
 **:SLOPE (\<body\>,\<geoposition\>)**
 
-Returns a computed slope (in percent) with the best available data. the input data is the best scanned data.
-
+Returns a computed slope (in percent) with the best available data. the input data is the best scanned data. KerbNet can be used as a source for the active vessel.
 
 **:ALLSCANTYPES**
 
