@@ -29,7 +29,7 @@
 		    {
 			AddSuffix("CURRENTBIOME", new kOS.Safe.Encapsulation.Suffixes.NoArgsSuffix<StringValue>(GetCurrentBiome, "Get Name of current Biome"));
 			AddSuffix(new[] { "GETBIOME", "BIOMEAT" }, new kOS.Safe.Encapsulation.Suffixes.TwoArgsSuffix<StringValue, BodyTarget, GeoCoordinates>(GetBiomeAt, "Get Name of Biome of Body,GeoCoordinates"));
-			AddSuffix("ELEVATION", new kOS.Safe.Encapsulation.Suffixes.TwoArgsSuffix<ScalarDoubleValue, BodyTarget, GeoCoordinates>(GetAltAt, "Get scanned altitude of Body,GeoCoordinates"));
+			AddSuffix("ELEVATION", new kOS.Safe.Encapsulation.Suffixes.TwoArgsSuffix<ScalarDoubleValue, BodyTarget, GeoCoordinates>(GetAltAtSuffix, "Get scanned altitude of Body,GeoCoordinates"));
 			AddSuffix("COMPLETEDSCANS", new kOS.Safe.Encapsulation.Suffixes.TwoArgsSuffix<ListValue, BodyTarget, GeoCoordinates>(GetScans, "Returns the list of the completed scans of Body,GeoCoordinates"));
 			AddSuffix("ALLSCANTYPES", new kOS.Safe.Encapsulation.Suffixes.NoArgsSuffix<ListValue>(GetScanNames, "Names of all scan types"));
 			AddSuffix("ALLRESOURCES", new kOS.Safe.Encapsulation.Suffixes.NoArgsSuffix<ListValue>(GetResourceNames, "List of all activated resource in the current game"));
@@ -40,23 +40,12 @@
 		}
 
 
-		///<summary>
-		/// checks if the mod with "assemblyName" is loaded into KSP.
-		///</summary>
-		internal static bool IsModInstalled(string assemblyName)
-		{
-		    Assembly assembly = (from a in AssemblyLoader.loadedAssemblies
-					 where a.name.ToLower().Equals(assemblyName.ToLower())
-					 select a).FirstOrDefault().assembly;
-		    return assembly != null;
-		}
-
-
+#region suffix_functions
 		///<summary>
 		///returns the amount of a given resource for a body and place 
 		/// takes the args <body> <geocoordinates> and <resource-string> in any order
 		///</summary>
-		private ScalarDoubleValue GetResourceByName(params Structure[] args )
+		public ScalarDoubleValue GetResourceByName(params Structure[] args )
 		{
 		    if (args.Length != 3 ) { return null; }
 		    BodyTarget body = args.Where(s => s.GetType() == typeof(BodyTarget)).Cast<BodyTarget>().First();
@@ -90,66 +79,55 @@
 		}
 
 		///<summary>
-		///Returns if the vessel has the questioned KerbNet type available (and is connected
-		///Takes the Parameter <string Type>
+		/// Suffix funtion for returing the completed scans for a spot
+		/// takes the kos parameters <BodyTarget>, <GeoCoordinates>
 		///</summary>
-		internal bool HasKerbNet(string kntype)
+		public ListValue GetScans(BodyTarget body, GeoCoordinates coordinate)
 		{
-			bool has_kerbnet = false;
-
-			if (vessel.connection.IsConnectedHome)
+		    ListValue scans = new ListValue();
+		    foreach (string s_type in Enum.GetNames(typeof(SCANtype)))
+		    {
+			if (CheckScanBlacklisted(s_type)) { continue; }
+			if (SCANUtil.isCovered(coordinate.Longitude, coordinate.Latitude, body.Body, SCANUtil.GetSCANtype(s_type)))
 			{
-				var kerbnets = vessel.FindPartModulesImplementing<ModuleKerbNetAccess>();
-				if (kerbnets.Count > 0)
-				{
-					foreach (var net in kerbnets)
-					{
-						if (net.modes.Exists(s => s.Equals(kntype, StringComparison.OrdinalIgnoreCase)))
-						{
-							has_kerbnet = true;
-						}
-					}
-				}
+			    scans.Add(new StringValue(s_type));
 			}
-			return has_kerbnet;
+		    }
+			return scans;
 		}
 
-		///<summary
-		///returns true is the given coordinates are within the Field of View of the KerbNet Scanner
+		///<summary>
+		/// Suffix function
+		/// returns a list with the loaded resources.
 		///</summary>
-		internal bool IsInKerbNetFoV(CelestialBody body,double lat, double lng)
+		public ListValue GetResourceNames()
 		{
-			bool isinview = false;
-			Vector3d body_vector = (body.position - Shared.Vessel.CoMD);
-
-			//check if we are orbiting the planet
-			if (Shared.Vessel.mainBody.name == body.name)
-			{
-				double altitude = GetElevation(body, lng, lat);
-				Vector3d latLongCoords = Body.GetWorldSurfacePosition(lat, lng, altitude);
-				Vector3d hereCoords = Shared.Vessel.CoMD;
-				Vector3d tgt_position = (latLongCoords - hereCoords);
-				// if the vector to the spot from body center is in our direction (opposite of the body direction,
-				// then the spot is on our side of the body. 
-				if (Vector3d.Vdot(tgt_position - body_vector, body_vector) < 0)
-				{
-					// ToDo
-					double MaxFOV = 100.0;
-					if (Vector3d.Vang(tgt_position, body_vector) < MaxFOV )
-					{
-						isinview = yes;
-					}
-				}
-	
-			}
-
-			return isinview;
+		    ListValue resources = new ListValue();
+		    foreach (SCANresourceGlobal res in SCANcontroller.setLoadedResourceList() )  {
+			resources.Add(new StringValue(res.Name));
+		    }
+		    return resources;
 		}
+
+		///<summary>
+		/// returns a list with the possible scan types.
+		///</summary>
+		public ListValue GetScanNames()
+		{
+		    ListValue allscans = new ListValue();
+		    foreach (string s_type in Enum.GetNames(typeof(SCANtype)))
+		    {
+			if (CheckScanBlacklisted(s_type)) { continue; }
+			allscans.Add(new StringValue(s_type));
+		    }
+		    return allscans;
+		}
+		
 
 		///<summary>
 		///returns the name of the Biome at the vessels postition
 		///</summary>
-		private StringValue GetCurrentBiome()
+		public StringValue GetCurrentBiome()
 		{
 		    var vessel = Shared.Vessel;
 		    var body = vessel.mainBody;
@@ -163,7 +141,7 @@
 			: Vessel.GetLandedAtString(vessel.landedAt).Replace(" ", "");
 		    } else
 		    {
-			Biome = GetScannedBiomeName(body, vessel.latitude, vessel.longitude);
+			Biome = GetScannedBiomeName(body, vessel.longitude, vessel.latitude);
 		    }
 
 		    return Biome;
@@ -173,79 +151,46 @@
 		/// Returns the name of the biome for a goepostion. Used in the calling suffix.
 		/// takes parameter <CelestialBody>, <GeoCoordinates>
 		///</summary>
-		private StringValue GetBiomeAt(BodyTarget body, GeoCoordinates coordinate)
+		public StringValue GetBiomeAt(BodyTarget body, GeoCoordinates coordinate)
 		{
-		    return GetScannedBiomeName(body.Body, coordinate.Latitude, coordinate.Longitude);
+		    return GetScannedBiomeName(body.Body, coordinate.Longitude, coordinate.Latitude);
 		}
 
 		///<summary>
-		/// Returns the name of the biome for a point
-		/// takes parameter <CelestialBody>, <double lat>, <double lng>
-		///</summary>
-		internal string GetScannedBiomeName(CelestialBody body,double lat, double lng)
-		{
-		    if ( (SCANUtil.isCovered(lng,lat,body, SCANUtil.GetSCANtype("Biome"))) || ( (HasKerbNet("Biome") && (IsInKerbNetFoV(body,lat,lng)) ) )
-		    {
-			return ScienceUtil.GetExperimentBiome(body, lat, lng);
-		    } else 	    
-		    {
-			return "unknown";
-		    }
-		}
-
-		///<summary>
-		/// Suffix funtion for returing the altitude for a spot
+		/// Suffix function for returing the altitude for a spot
 		/// takes the kos parameters <BodyTarget>, <GeoCoordinates>
 		///</summary>
-		private ScalarDoubleValue GetAltAt(BodyTarget body, GeoCoordinates coordinate)
+		public ScalarDoubleValue GetAltAtSuffix(BodyTarget body, GeoCoordinates coordinate)
 		{
-		    double altitude = -1;
-
-		    if (SCANUtil.isCovered(coordinate.Longitude, coordinate.Latitude, body.Body, SCANUtil.GetSCANtype("AltimetryHiRes")))
-		    {
-			altitude = GetElevation(body.Body, coordinate.Longitude, coordinate.Latitude);
-			return altitude;
-		    }
-		    if (SCANUtil.isCovered(coordinate.Longitude, coordinate.Latitude, body.Body, SCANUtil.GetSCANtype("AltimetryLoRes")))
-		    {
-			double alt = GetElevation(body.Body, coordinate.Longitude, coordinate.Latitude);
-			altitude = (Math.Round(alt / 500)) * 500;
-			return altitude;
-		    }
-			return altitude;
+			return GetAltAt(body.Body,coordinate.Longitude, coordinate.Latitude);
 		}
-		
+
 		///<summary>
 		/// Suffix funtion for returing completed percentage of a scantype for a body
 		/// takes the kos parameters <BodyTarget>, <StrinValue> scantype
 		///</summary>
-		private ScalarDoubleValue GetCoverage(BodyTarget body, StringValue scantype)
+		public ScalarDoubleValue GetCoverage(BodyTarget body, StringValue scantype)
 		{
 		    return SCANUtil.GetCoverage(SCANUtil.GetSCANtype(scantype),body.Body);
-		}
-
-		private ScalarDoubleValue GetAltAt(BodyTarget body, double lon, double lat)
-		{
-		    GeoCoordinates coordinates = new GeoCoordinates(shared, lat, lon);
-		     return GetAltAt(body,coordinates);
 		}
 
 		///<summary>
 		/// Suffix funtion for returing the Slope for a spot
 		/// takes the kos parameters <BodyTarget>, <GeoCoordinates>
 		///</summary>
-		private ScalarDoubleValue GetSlope(BodyTarget body, GeoCoordinates coordinate)
+		public ScalarDoubleValue GetSlope(BodyTarget bodytgt, GeoCoordinates coordinate)
 		{
 		    double slope = -1;
-		    double offsetm = 5;
+		    double offsetm = 500;
 
-		    if (SCANUtil.isCovered(coordinate.Longitude, coordinate.Latitude, body.Body, SCANUtil.GetSCANtype("AltimetryHiRes")))
+			
+		    double lon = coordinate.Longitude;
+		    double lat = coordinate.Latitude;
+		    CelestialBody body = bodytgt.Body;
+		    
+		    if ( (SCANUtil.isCovered(lon, lat, body, SCANUtil.GetSCANtype("AltimetryHiRes"))) || ( (HasKerbNet("Terrain") && (IsInKerbNetFoV(body,lon,lat)) ) )
 		    {
 			offsetm = 5;
-		    }
-		    if (SCANUtil.isCovered(coordinate.Longitude, coordinate.Latitude, body.Body, SCANUtil.GetSCANtype("AltimetryLoRes")))
-		    {
-			offsetm = 500;
 		    }
 
 		    /*
@@ -253,15 +198,13 @@
 		    double eqDistancePerDegree = circum / 360;
 		    degreeOffset = 5 / eqDistancePerDegree;
 		    */
-		    double offset = offsetm/(body.Body.Radius * 2 * Math.PI/360);
+		    double offset = offsetm/(body.Radius * 2 * Math.PI/360);
 
 		    double latOffset = 0;
 		    // matrix for z-values
 		    double[] z = new double[9];
 
 		    int i = 0;
-		    double lat = coordinate.Latitude;
-		    double lon = coordinate.Longitude;
 		    double altcenter = GetAltAt(body, lon, lat);
 
 		    // setup the matrix with eqidistant messurement. 
@@ -288,11 +231,124 @@
 
 		    slope = 100* Math.Abs(Math.Sqrt(Math.Pow(dEW,2) + Math.Pow(dNS,2)));
 
-		    if (SCANUtil.isCovered(coordinate.Longitude, coordinate.Latitude, body.Body, SCANUtil.GetSCANtype("AltimetryLoRes")))
-		    {
-
-		    }
 		    return Math.Round(slope,2);
+		}
+
+#endregion
+#region internal_function
+
+		///<summary>
+		/// checks if the mod with "assemblyName" is loaded into KSP.
+		///</summary>
+		internal static bool IsModInstalled(string assemblyName)
+		{
+		    Assembly assembly = (from a in AssemblyLoader.loadedAssemblies
+					 where a.name.ToLower().Equals(assemblyName.ToLower())
+					 select a).FirstOrDefault().assembly;
+		    return assembly != null;
+		}
+
+		///<summary>
+		///Returns if the vessel has the questioned KerbNet type available (and is connected
+		///Takes the Parameter <string Type>
+		///</summary>
+		internal bool HasKerbNet(string kntype)
+		{
+			bool has_kerbnet = false;
+
+			if (vessel.connection.IsConnectedHome)
+			{
+				var kerbnets = vessel.FindPartModulesImplementing<ModuleKerbNetAccess>();
+				if (kerbnets.Count > 0)
+				{
+					foreach (var net in kerbnets)
+					{
+						if (net.modes.Exists(s => s.Equals(kntype, StringComparison.OrdinalIgnoreCase)))
+						{
+							has_kerbnet = true;
+						}
+					}
+				}
+			}
+			return has_kerbnet;
+		}
+
+		///<summary>
+		///returns true is the given coordinates are within the Field of View of the KerbNet Scanner
+		///</summary>
+		internal bool IsInKerbNetFoV(CelestialBody body,double lng, double lat)
+		{
+			bool isinview = false;
+			Vector3d body_vector = (body.position - Shared.Vessel.CoMD);
+
+			//check if we are orbiting the planet
+			if (Shared.Vessel.mainBody.name == body.name)
+			{
+				double altitude = GetElevation(body, lng, lat);
+				Vector3d latLongCoords = Body.GetWorldSurfacePosition(lat, lng, altitude);
+				Vector3d hereCoords = Shared.Vessel.CoMD;
+				Vector3d tgt_position = (latLongCoords - hereCoords);
+				// if the vector to the spot from body center is in our direction (opposite of the body direction,
+				// then the spot is on our side of the body. 
+				if (Vector3d.Vdot(tgt_position - body_vector, body_vector) < 0)
+				{
+					double MaxFOV = 0.1;
+					var kerbnets = vessel.FindPartModulesImplementing<ModuleKerbNetAccess>();
+					if (kerbnets.Count > 0)
+					{
+						foreach (var net in kerbnets)
+						{
+							MaxFOV=Math.Max(MaxFOV,net.MaximumFoV)
+						}
+					}
+					
+					if (Vector3d.Vang(tgt_position, body_vector) < MaxFOV )
+					{
+						isinview = true;
+					}
+				}
+	
+			}
+
+			return isinview;
+		}
+
+		///<summary>
+		/// Returns the name of the biome for a point
+		/// takes parameter <CelestialBody>, <double lng>, <double lat>
+		///</summary>
+		internal string GetScannedBiomeName(CelestialBody body,double lng, double lat)
+		{
+		    if ( (SCANUtil.isCovered(lng,lat,body, SCANUtil.GetSCANtype("Biome"))) || ( (HasKerbNet("Biome") && (IsInKerbNetFoV(body,lng,lat)) ) )
+		    {
+			return ScienceUtil.GetExperimentBiome(body, lat, lng);
+		    } else 	    
+		    {
+			return "unknown";
+		    }
+		}
+
+
+
+		///<summary>
+		/// internal function to return the altitude with the best scanned performance
+		///</summary>
+		internal double GetAltAt(CelestialBody body, double lon, double lat)
+		{
+			double altitude = -1;
+
+			if ( (SCANUtil.isCovered(lon, lat, body, SCANUtil.GetSCANtype("AltimetryHiRes"))) || ( (HasKerbNet("Terrain") && (IsInKerbNetFoV(body,lon,lat)) ) )
+			{
+				altitude = GetElevation(body, lon, lat);
+				return altitude;
+			}
+			if (SCANUtil.isCovered(lon, lat, body, SCANUtil.GetSCANtype("AltimetryLoRes")))
+			{
+				double alt = GetElevation(body, lon, lat);
+				altitude = (Math.Round(alt / 500)) * 500;
+				return altitude;
+			}
+			return altitude;
 		}
 
 
@@ -300,7 +356,7 @@
 	       /// returns the altitude of a spot on a body
 	       /// this function is copied from SCANsat
 	       ///</summary>
-		internal static double GetElevation(CelestialBody body, double lon, double lat)
+		internal double GetElevation(CelestialBody body, double lon, double lat)
 		{
 		    if (body.pqsController == null) return 0;
 		    double rlon = Mathf.Deg2Rad * lon;
@@ -309,55 +365,12 @@
 		    return Math.Round(body.pqsController.GetSurfaceHeight(rad) - body.pqsController.radius, 1);
 		}
 
-		///<summary>
-		/// Suffix funtion for returing the completed scans for a spot
-		/// takes the kos parameters <BodyTarget>, <GeoCoordinates>
-		///</summary>
-		private ListValue GetScans(BodyTarget body, GeoCoordinates coordinate)
-		{
-		    ListValue scans = new ListValue();
-		    foreach (string s_type in Enum.GetNames(typeof(SCANtype)))
-		    {
-			if (CheckScanBlacklisted(s_type)) { continue; }
-			if (SCANUtil.isCovered(coordinate.Longitude, coordinate.Latitude, body.Body, SCANUtil.GetSCANtype(s_type)))
-			{
-			    scans.Add(new StringValue(s_type));
-			}
-		    }
-			return scans;
-		}
 
-		///<summary>
-		/// Suffix function
-		/// returns a list with the loaded resources.
-		///</summary>
-		private ListValue GetResourceNames()
-		{
-		    ListValue resources = new ListValue();
-		    foreach (SCANresourceGlobal res in SCANcontroller.setLoadedResourceList() )  {
-			resources.Add(new StringValue(res.Name));
-		    }
-		    return resources;
-		}
-
-		///<summary>
-		/// returns a list with the possible scan types.
-		///</summary>
-		private ListValue GetScanNames()
-		{
-		    ListValue allscans = new ListValue();
-		    foreach (string s_type in Enum.GetNames(typeof(SCANtype)))
-		    {
-			if (CheckScanBlacklisted(s_type)) { continue; }
-			allscans.Add(new StringValue(s_type));
-		    }
-		    return allscans;
-		}
 
 		///<summary>
 		///returns if the ScanType is forbidden by the blacklist
 		///</summary>
-		private bool CheckScanBlacklisted (string scanname)
+		internal bool CheckScanBlacklisted (string scanname)
 		{
 		    string[] blacklist = { "Nothing", "Altimetry", "Everything_SCAN", "Science", "Everything", "MKSResources", "KSPIResourece", "DefinedResources" , "SCANsat_1" };
 		    if (blacklist.Contains(scanname))
@@ -373,6 +386,7 @@
 	    }
 	}
 
+#endregion
 	/*
 	Nothing = 0, 		    // no data (MapTraq)
 			AltimetryLoRes = 1 << 0,  // low resolution altimetry (limited zoom)
