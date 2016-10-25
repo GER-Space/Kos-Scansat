@@ -53,8 +53,9 @@
 		    GeoCoordinates coordinate = args.Where(s => s.GetType() == typeof(GeoCoordinates)).Cast<GeoCoordinates>().First();
 		    StringValue s_type = args.Where(s => s.GetType() == typeof(StringValue)).Cast<StringValue>().First();
 
-		    if (SCANUtil.isCovered(coordinate.Longitude, coordinate.Latitude, body.Body, SCANUtil.GetSCANtype(s_type)))
-		    {
+		    if ( (SCANUtil.isCovered(coordinate.Longitude, coordinate.Latitude, body.Body, SCANUtil.GetSCANtype(s_type))) || ((HasKerbNet("Resource") && (IsInKerbNetFoV(body.Body, coordinate.Longitude, coordinate.Latitude)))) )
+
+            {
 			float amount = 0f;
 			var aRequest = new AbundanceRequest
 			{
@@ -251,8 +252,7 @@
 		internal bool HasKerbNet(string kntype)
 		{
 			bool has_kerbnet = false;
-
-			if (shared.Vessel.connection.IsConnectedHome)
+			if (shared.Vessel.connection.IsConnectedHome || !HighLogic.CurrentGame.Parameters.Difficulty.EnableCommNet)
 			{
 				var kerbnets = shared.Vessel.FindPartModulesImplementing<ModuleKerbNetAccess>();
 				if (kerbnets.Count > 0)
