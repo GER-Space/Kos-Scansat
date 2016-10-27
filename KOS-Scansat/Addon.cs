@@ -2,7 +2,7 @@
 	using System.Linq;
 	using kOS.Suffixed;
 	using UnityEngine;
-	using SCANsat;
+	//using SCANsat;
 	using System.Reflection;
 
 	using kOS.Safe.Encapsulation;
@@ -25,8 +25,6 @@
 		private void InitializeSuffixes()
 		{
 
-		    if (IsModInstalled("scansat"))
-		    {
 			AddSuffix("CURRENTBIOME", new kOS.Safe.Encapsulation.Suffixes.NoArgsSuffix<StringValue>(GetCurrentBiome, "Get Name of current Biome"));
 			AddSuffix(new[] { "GETBIOME", "BIOMEAT" }, new kOS.Safe.Encapsulation.Suffixes.TwoArgsSuffix<StringValue, BodyTarget, GeoCoordinates>(GetBiomeAt, "Get Name of Biome of Body,GeoCoordinates"));
 			AddSuffix("ELEVATION", new kOS.Safe.Encapsulation.Suffixes.TwoArgsSuffix<ScalarDoubleValue, BodyTarget, GeoCoordinates>(GetAltAtSuffix, "Get scanned altitude of Body,GeoCoordinates"));
@@ -36,16 +34,23 @@
 			AddSuffix("RESOURCEAT", new kOS.Safe.Encapsulation.Suffixes.VarArgsSuffix<ScalarDoubleValue, Structure>(GetResourceByName, "Returns the amount of a resource by its scan type: Body,GeoCoordinates,scantype"));
 			AddSuffix("SLOPE", new kOS.Safe.Encapsulation.Suffixes.TwoArgsSuffix<ScalarDoubleValue, BodyTarget, GeoCoordinates>(GetSlope, "Returns the most accurate slope of the location"));
 			AddSuffix("GETCOVERAGE", new kOS.Safe.Encapsulation.Suffixes.TwoArgsSuffix<ScalarDoubleValue, BodyTarget, StringValue>(GetCoverage, "Returns completen percatage of a body,scantype"));
-		    }
+
+
+            SCANWrapper = new SCANWrapper();
+            if (IsModInstalled("scansat"))
+            {
+                SCANWrapper.InitReflection();
+            }
 		}
 
+        internal SCANWrapper SCANWrapper;
 
 #region suffix_functions
-		///<summary>
-		///returns the amount of a given resource for a body and place 
-		/// takes the args <body> <geocoordinates> and <resource-string> in any order
-		///</summary>
-		public ScalarDoubleValue GetResourceByName(params Structure[] args )
+        ///<summary>
+        ///returns the amount of a given resource for a body and place 
+        /// takes the args <body> <geocoordinates> and <resource-string> in any order
+        ///</summary>
+        public ScalarDoubleValue GetResourceByName(params Structure[] args )
 		{
 		    if (args.Length != 3 ) { return null; }
 		    BodyTarget body = args.Where(s => s.GetType() == typeof(BodyTarget)).Cast<BodyTarget>().First();
@@ -53,7 +58,7 @@
 		    GeoCoordinates coordinate = args.Where(s => s.GetType() == typeof(GeoCoordinates)).Cast<GeoCoordinates>().First();
 		    StringValue s_type = args.Where(s => s.GetType() == typeof(StringValue)).Cast<StringValue>().First();
 
-		    if ( (SCANUtil.isCovered(coordinate.Longitude, coordinate.Latitude, body.Body, SCANUtil.GetSCANtype(s_type))) || ((HasKerbNet("Resource") && (IsInKerbNetFoV(body.Body, coordinate.Longitude, coordinate.Latitude)))) )
+		    if ( (SCANWrapper.IsCovered(coordinate.Longitude, coordinate.Latitude, body.Body, s_type)) || ((HasKerbNet("Resource") && (IsInKerbNetFoV(body.Body, coordinate.Longitude, coordinate.Latitude)))) )
 
             {
 			float amount = 0f;
@@ -65,7 +70,7 @@
 			    ResourceName = s_type,
 			    ResourceType = HarvestTypes.Planetary,
 			    Altitude = 0,
-			    CheckForLock = SCANcontroller.controller.resourceBiomeLock,
+			    CheckForLock = SCANWrapper.GetResourceBiomeLock(),
 			    BiomeName = ScienceUtil.GetExperimentBiome(body.Body, coordinate.Latitude, coordinate.Longitude),
 			    ExcludeVariance = false,
 			};
@@ -86,14 +91,17 @@
 		public ListValue GetScans(BodyTarget body, GeoCoordinates coordinate)
 		{
 		    ListValue scans = new ListValue();
-		    foreach (string s_type in Enum.GetNames(typeof(SCANtype)))
-		    {
-			if (CheckScanBlacklisted(s_type)) { continue; }
-			if (SCANUtil.isCovered(coordinate.Longitude, coordinate.Latitude, body.Body, SCANUtil.GetSCANtype(s_type)))
-			{
-			    scans.Add(new StringValue(s_type));
-			}
-		    }
+            if (IsModInstalled("scansat"))
+            {
+                foreach (string s_type in Enum.GetNames(typeof(SCANtype)))
+                {
+                    if (CheckScanBlacklisted(s_type)) { continue; }
+                    if (SCANWrapper.IsCovered(coordinate.Longitude, coordinate.Latitude, body.Body, s_type))
+                    {
+                        scans.Add(new StringValue(s_type));
+                    }
+                }
+            }
 			return scans;
 		}
 
@@ -104,9 +112,13 @@
 		public ListValue GetResourceNames()
 		{
 		    ListValue resources = new ListValue();
-		    foreach (SCANresourceGlobal res in SCANcontroller.setLoadedResourceList() )  {
-			resources.Add(new StringValue(res.Name));
-		    }
+            if (IsModInstalled("scansat"))
+            {
+                foreach (SCANresourceGlobal res in SCANWrapper.GetLoadedResourceList())
+                {
+                    resources.Add(new StringValue(res.Name));
+                }
+            }
 		    return resources;
 		}
 
@@ -116,11 +128,14 @@
 		public ListValue GetScanNames()
 		{
 		    ListValue allscans = new ListValue();
-		    foreach (string s_type in Enum.GetNames(typeof(SCANtype)))
-		    {
-			if (CheckScanBlacklisted(s_type)) { continue; }
-			allscans.Add(new StringValue(s_type));
-		    }
+            if (IsModInstalled("scansat"))
+            {
+                foreach (string s_type in Enum.GetNames(typeof(SCANtype)))
+                {
+                    if (CheckScanBlacklisted(s_type)) { continue; }
+                    allscans.Add(new StringValue(s_type));
+                }
+            }
 		    return allscans;
 		}
 		
@@ -135,7 +150,7 @@
 		    var Biome = "";
 
 		    // check if we have crew onboard, which can look outside of a window, to determinate where we are or have we kerbnet access
-		    if ( (HasKerbNet("Biome")) || (vessel.GetCrewCount() > 0) )
+		    if ( (HasKerbNet("Biome")) || (vessel.GetCrewCount() > 0) || (SCANWrapper.IsCovered(vessel.longitude, vessel.latitude, body, "Biome")) )
 		    {
 			Biome = string.IsNullOrEmpty(vessel.landedAt)
 			? ScienceUtil.GetExperimentBiome(body, vessel.latitude, vessel.longitude)
@@ -172,7 +187,7 @@
 		///</summary>
 		public ScalarDoubleValue GetCoverage(BodyTarget body, StringValue scantype)
 		{
-		    return SCANUtil.GetCoverage(SCANUtil.GetSCANtype(scantype),body.Body);
+		    return SCANWrapper.GetCoverage(scantype,body.Body);
 		}
 
 		///<summary>
@@ -187,7 +202,7 @@
 		    double lat = coordinate.Latitude;
 		    CelestialBody body = bodytgt.Body;
 		    
-		    if ( (SCANUtil.isCovered(lon, lat, body, SCANUtil.GetSCANtype("AltimetryHiRes"))) || ( (HasKerbNet("Terrain") && (IsInKerbNetFoV(body,lon,lat))) ) )
+		    if ( (SCANWrapper.IsCovered(lon, lat, body, "AltimetryHiRes")) || ( (HasKerbNet("Terrain") && (IsInKerbNetFoV(body,lon,lat))) ) )
 		    {
 			offsetm = 5;
 		    }
@@ -315,7 +330,7 @@
 		///</summary>
 		internal string GetScannedBiomeName(CelestialBody body,double lng, double lat)
 		{
-		    if ( (SCANUtil.isCovered(lng,lat,body, SCANUtil.GetSCANtype("Biome"))) || ( (HasKerbNet("Biome")) && (IsInKerbNetFoV(body,lng,lat)) ) )
+		    if ( (SCANWrapper.IsCovered(lng,lat,body, "Biome")) || ( (HasKerbNet("Biome")) && (IsInKerbNetFoV(body,lng,lat)) ) )
 		    {
 			return ScienceUtil.GetExperimentBiome(body, lat, lng);
 		    } else 	    
@@ -333,12 +348,12 @@
 		{
 			double altitude = -1;
 
-			if ( (SCANUtil.isCovered(lon, lat, body, SCANUtil.GetSCANtype("AltimetryHiRes"))) || ( (HasKerbNet("Terrain")) && (IsInKerbNetFoV(body,lon,lat)) ) )
+			if ( (SCANWrapper.IsCovered(lon, lat, body, "AltimetryHiRes")) || ( (HasKerbNet("Terrain")) && (IsInKerbNetFoV(body,lon,lat)) ) )
 			{
 				altitude = GetElevation(body, lon, lat);
 				return altitude;
 			}
-			if (SCANUtil.isCovered(lon, lat, body, SCANUtil.GetSCANtype("AltimetryLoRes")))
+			if (SCANWrapper.IsCovered(lon, lat, body, "AltimetryLoRes"))
 			{
 				double alt = GetElevation(body, lon, lat);
 				altitude = (Math.Round(alt / 500)) * 500;
