@@ -9,27 +9,27 @@ namespace kOS.AddOns.kOSSCANsat
 {
 
 
-    public class SCANWrapper
+    internal class SCANWrapper
     {
-        public SCANWrapper instance;
+        internal SCANWrapper instance;
 
         internal bool scansatinstalled;
-        public SCANWrapper()
+        internal SCANWrapper()
         {
             instance = this;
             scansatinstalled = Addon.IsModInstalled("scansat");
         }
-        public void InitReflection()
+        internal void InitReflection()
         {
             //for future use
         }
 
-        public int GetSCANtype(string s_type)
+        internal int GetSCANtype(string s_type)
         {
             return SCANUtil.GetSCANtype(s_type);
         }
 
-        public bool GetResourceBiomeLock()
+        internal bool GetResourceBiomeLock()
         {
             bool resourcelock = true;
             if (scansatinstalled)
@@ -39,7 +39,7 @@ namespace kOS.AddOns.kOSSCANsat
             return resourcelock;
         }
 
-        public bool IsCovered(double lon, double lat, CelestialBody body, string scan_type) {
+        internal bool IsCovered(double lon, double lat, CelestialBody body, string scan_type) {
             bool iscovered = false;
             if (scansatinstalled) {
                 iscovered = SCANUtil.isCovered(lon, lat, body, SCANUtil.GetSCANtype(scan_type));
@@ -47,7 +47,7 @@ namespace kOS.AddOns.kOSSCANsat
             return iscovered;
         }
 
-        public double GetCoverage(string scantype, CelestialBody body)
+        internal double GetCoverage(string scantype, CelestialBody body)
         {
             double completed = 0d;
             if (scansatinstalled)
@@ -57,7 +57,7 @@ namespace kOS.AddOns.kOSSCANsat
             return completed;
         }
 
-        public List<SCANresourceGlobal> GetLoadedResourceList()
+        internal List<SCANresourceGlobal> GetLoadedResourceList()
         {
             return SCANcontroller.setLoadedResourceList();
         }

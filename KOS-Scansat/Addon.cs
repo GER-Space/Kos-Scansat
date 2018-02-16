@@ -274,7 +274,7 @@
 				{
 					foreach (var net in kerbnets)
 					{
-						if (net.modes.Exists(s => s.Equals(kntype, StringComparison.OrdinalIgnoreCase)))
+						if (net.modes.Exists(s => s.ToString().Equals(kntype, StringComparison.OrdinalIgnoreCase)))
 						{
 							has_kerbnet = true;
 						}
@@ -297,8 +297,8 @@
 			{
 				double altitude = GetElevation(body, lng, lat);
 				Vector3d latLongCoords = body.GetWorldSurfacePosition(lat, lng, altitude);
-				Vector3d hereCoords = shared.Vessel.CoMD;
-				Vector3d tgt_position = (latLongCoords - hereCoords);
+			//	Vector3d hereCoords = shared.Vessel.CoMD;
+				Vector3d tgt_position = (latLongCoords - shared.Vessel.CoMD);
 				// if the vector to the spot from body center is in our direction (opposite of the body direction,
 				// then the spot is on our side of the body. 
 				if (Vector3d.Dot(tgt_position - body_vector, body_vector) < 0)
